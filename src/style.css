@@ -16,20 +16,21 @@ button { color: inherit; }
 
 .hud { position: absolute; display: flex; align-items: center; pointer-events: auto; }
 .top-hud { top: max(23px, env(safe-area-inset-top)); left: max(26px, env(safe-area-inset-left)); right: max(26px, env(safe-area-inset-right)); justify-content: space-between; gap: 20px; }
-.brand-block { display: flex; align-items: center; gap: 9px; letter-spacing: .15em; white-space: nowrap; }
+.brand-block { display: flex; align-items: center; gap: 9px; letter-spacing: .15em; white-space: nowrap; opacity: .9; }
 .brand-mark { display: grid; width: 27px; height: 27px; place-items: center; border: 1px solid rgba(255,255,255,.55); border-radius: 50%; font-family: Georgia, serif; font-size: 16px; font-style: italic; letter-spacing: 0; }
 .brand { font-size: 12px; font-weight: 760; }
 .tag { color: rgba(245,241,231,.66); font-size: 8px; font-weight: 600; letter-spacing: .19em; }
-.route-pill { display: flex; align-items: center; gap: 9px; padding: 8px 12px; color: rgba(255,255,255,.86); border: 1px solid rgba(255,255,255,.13); border-radius: 20px; background: rgba(14,23,21,.27); backdrop-filter: blur(12px); font-size: 10px; letter-spacing: .06em; white-space: nowrap; }
-.pulse { width: 6px; height: 6px; border-radius: 50%; background: #e0bc72; box-shadow: 0 0 11px #e0bc72; }
-.route-separator { height: 12px; width: 1px; background: rgba(255,255,255,.24); }
 .hud-actions { display: flex; gap: 8px; }
 .icon-button, .close-button { display: grid; place-items: center; border: 1px solid rgba(255,255,255,.18); background: rgba(17,27,24,.34); backdrop-filter: blur(12px); cursor: pointer; transition: background .2s, transform .2s, border-color .2s; }
 .icon-button { width: 36px; height: 36px; border-radius: 50%; font-size: 17px; }
+.camera-button { display: inline-flex; align-items: center; gap: 5px; min-width: 56px; height: 36px; padding: 0 10px; border: 1px solid rgba(255,255,255,.18); border-radius: 18px; background: rgba(17,27,24,.34); backdrop-filter: blur(12px); cursor: pointer; transition: background .2s, transform .2s, border-color .2s; }
+.camera-button span { color: #e7c67f; font-size: 12px; }
+.camera-button small { color: rgba(255,255,255,.86); font-size: 8px; font-weight: 780; letter-spacing: .08em; }
+.camera-button:hover, .camera-button:focus-visible { border-color: rgba(255,255,255,.6); background: rgba(230,211,168,.2); transform: translateY(-1px); outline: none; }
 .icon-button:hover, .icon-button:focus-visible { background: rgba(230,211,168,.2); border-color: rgba(255,255,255,.6); transform: translateY(-1px); outline: none; }
 .settings-button { font-size: 15px; }
 
-.dashboard { left: max(28px, env(safe-area-inset-left)); bottom: max(27px, env(safe-area-inset-bottom)); gap: 26px; padding: 11px 15px 11px 17px; border: 1px solid rgba(255,255,255,.12); border-radius: 9px; background: rgba(10,18,16,.32); backdrop-filter: blur(16px); }
+.dashboard { left: max(28px, env(safe-area-inset-left)); bottom: max(27px, env(safe-area-inset-bottom)); padding: 7px 10px 7px 12px; border-left: 1px solid rgba(231,198,127,.7); background: rgba(10,18,16,.18); backdrop-filter: blur(10px); }
 .speed-cluster { display: grid; grid-template-columns: auto auto; align-items: end; column-gap: 5px; }
 .speed-cluster strong { font-family: Georgia, "Times New Roman", serif; font-size: 42px; font-weight: 400; line-height: .85; letter-spacing: -.06em; }
 .speed-cluster span, .metric span { padding-bottom: 3px; color: rgba(255,255,255,.58); font-size: 8px; font-weight: 720; letter-spacing: .13em; }
@@ -74,6 +75,9 @@ button { color: inherit; }
 .quality-options button small { display: block; margin-top: 3px; color: rgba(255,255,255,.4); font-size: 8px; font-weight: 500; }
 .quality-options button.is-selected { border-color: #e0bd77; background: rgba(221,183,107,.15); color: #f4d796; }
 .quality-options button.is-selected small { color: rgba(245,214,148,.69); }
+.camera-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin: 0 0 10px; }
+.camera-options button { min-height: 29px; border: 1px solid rgba(255,255,255,.11); border-radius: 5px; background: rgba(255,255,255,.035); color: rgba(255,255,255,.63); cursor: pointer; font-size: 9px; transition: border-color .2s, background .2s, color .2s; }
+.camera-options button.is-selected { border-color: #e0bd77; background: rgba(221,183,107,.15); color: #f4d796; }
 .range-row { display: flex; justify-content: space-between; margin-top: 14px; color: rgba(255,255,255,.76); font-size: 10px; }
 .range-row output { color: #e2c481; font-size: 10px; font-weight: 650; }
 input[type="range"] { width: 100%; height: 18px; margin: 3px 0 0; appearance: none; -webkit-appearance: none; background: transparent; cursor: pointer; }
@@ -92,6 +96,9 @@ input[type="range"]::-moz-range-thumb { width: 10px; height: 10px; border: 2px s
 .switch-row input:checked + i::after { transform: translateX(13px); background: #fff0c7; }
 .sheet-foot { display: flex; justify-content: center; gap: 7px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.11); color: rgba(255,255,255,.43); font-size: 9px; letter-spacing: .03em; }
 .sheet-foot span:last-child { color: #dcb971; }
+.route-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid rgba(255,255,255,.11); color: rgba(255,255,255,.46); font-size: 9px; letter-spacing: .04em; }
+.route-button { padding: 8px 10px; border: 1px solid rgba(226,191,118,.52); border-radius: 4px; background: rgba(226,191,118,.11); color: #ead097; cursor: pointer; font-size: 9px; font-weight: 720; letter-spacing: .08em; text-transform: uppercase; }
+.route-button:hover { background: rgba(226,191,118,.22); }
 
 @media (hover: none), (pointer: coarse) {
   .touch-controls { display: flex; }
@@ -103,7 +110,7 @@ input[type="range"]::-moz-range-thumb { width: 10px; height: 10px; border: 2px s
   .top-hud { top: max(15px, env(safe-area-inset-top)); left: max(15px, env(safe-area-inset-left)); right: max(15px, env(safe-area-inset-right)); }
   .brand { font-size: 10px; }
   .brand-mark { width: 24px; height: 24px; }
-  .tag, .route-pill { display: none; }
+  .tag { display: none; }
   .icon-button { width: 33px; height: 33px; }
   .dashboard { left: 15px; gap: 12px; padding: 8px 10px 8px 12px; }
   .speed-cluster strong { font-size: 34px; }

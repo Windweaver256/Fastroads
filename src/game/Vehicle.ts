@@ -10,6 +10,7 @@ export interface DriveInput {
 /** Forgiving arcade dynamics: a little inertia, no fragile simulation, and clear off-road feedback. */
 export class Vehicle {
   readonly object = new THREE.Group()
+  private readonly visual = new THREE.Group()
   private readonly wheels: THREE.Mesh[] = []
   private horsepower = 420
   private steeringAssist = 1
@@ -36,6 +37,11 @@ export class Vehicle {
     return this.odometer / 1000
   }
 
+  /** Heading in world space; it is deliberately independent of suspension/visual lean. */
+  get heading(): number {
+    return this.yaw
+  }
+
   setTuning(horsepower: number, steeringAssist: number, cruise: boolean): void {
     this.horsepower = horsepower
     this.steeringAssist = steeringAssist
@@ -50,6 +56,8 @@ export class Vehicle {
     this.velocity = 0
     this.odometer = 0
     this.object.position.set(this.x, this.y + 0.42, this.z)
+    this.object.rotation.set(0, this.yaw, 0)
+    this.visual.rotation.set(0, 0, 0)
   }
 
   update(delta: number, input: DriveInput, road: RoadSample, terrainY: number, roadWidth: number): void {
@@ -67,7 +75,10 @@ export class Vehicle {
     const desiredSteer = input.steer * (0.42 + this.steeringAssist * 0.34)
     this.steerAngle = THREE.MathUtils.damp(this.steerAngle, desiredSteer, 9, delta)
     const steeringStrength = (0.018 + this.steeringAssist * 0.012) * THREE.MathUtils.clamp(1 - this.velocity / 120, 0.32, 1)
-    this.yaw += this.steerAngle * this.velocity * steeringStrength * delta
+    // The follow camera faces forward from behind the car. In that view, world X is
+    // mirrored on screen, so steering must rotate opposite to the raw screen axis.
+    // This keeps A/← and the left touch button reliably turning toward screen-left.
+    this.yaw -= this.steerAngle * this.velocity * steeringStrength * delta
 
     const forwardX = Math.sin(this.yaw)
     const forwardZ = Math.cos(this.yaw)
@@ -82,7 +93,8 @@ export class Vehicle {
     this.lateralLean = THREE.MathUtils.damp(this.lateralLean, -this.steerAngle * Math.min(this.velocity * 0.027, 0.24), 6, delta)
     this.y = THREE.MathUtils.damp(this.y, onRoad ? road.y : terrainY, 8, delta)
     this.object.position.set(this.x, this.y + 0.46, this.z)
-    this.object.rotation.set(this.lateralLean, this.yaw, this.lateralLean * 0.5)
+    this.object.rotation.set(0, this.yaw, 0)
+    this.visual.rotation.set(0, 0, this.lateralLean)
     for (const wheel of this.wheels) wheel.rotation.x -= this.velocity * delta / 0.36
   }
 
@@ -94,31 +106,32 @@ export class Vehicle {
     const body = new THREE.Mesh(new THREE.BoxGeometry(1.86, 0.48, 4.18), paint)
     body.position.y = 0.48
     body.castShadow = true
-    this.object.add(body)
+    this.visual.add(body)
     const hood = new THREE.Mesh(new THREE.BoxGeometry(1.76, 0.24, 1.25), paint)
     hood.position.set(0, 0.73, 1.18)
     hood.castShadow = true
-    this.object.add(hood)
+    this.visual.add(hood)
     const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.58, 0.65, 1.8), glass)
     cabin.position.set(0, 1.03, -0.36)
     cabin.castShadow = true
-    this.object.add(cabin)
+    this.visual.add(cabin)
     const grille = new THREE.Mesh(new THREE.BoxGeometry(1.38, 0.16, 0.08), dark)
     grille.position.set(0, 0.47, 2.13)
-    this.object.add(grille)
+    this.visual.add(grille)
     for (const side of [-1, 1]) {
       const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.16, 0.07), chrome)
       lamp.position.set(side * 0.58, 0.71, 2.12)
-      this.object.add(lamp)
+      this.visual.add(lamp)
       for (const front of [-1.35, 1.3]) {
         const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.23, 12), dark)
         wheel.position.set(side * 0.98, 0.37, front)
         wheel.rotation.z = Math.PI / 2
         wheel.castShadow = true
         this.wheels.push(wheel)
-        this.object.add(wheel)
+        this.visual.add(wheel)
       }
     }
+    this.object.add(this.visual)
     this.object.name = 'solstice-car'
   }
 }

@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { type DriveInput, Vehicle } from './Vehicle'
-import { type GameSettings } from './Settings'
+import { type CameraView, type GameSettings } from './Settings'
 import { World } from './World'
 
 export interface GameCallbacks {
@@ -32,6 +32,8 @@ export class Game {
   private running = true
   private cameraPosition = new THREE.Vector3()
   private lookTarget = new THREE.Vector3()
+  private cameraElapsed = 0
+  private snapCamera = true
   private activeSeed = Math.floor(Math.random() * 900000) + 100000
 
   constructor(host: HTMLElement, settings: GameSettings, callbacks: GameCallbacks) {
@@ -45,15 +47,14 @@ export class Game {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
     this.renderer.domElement.className = 'game-canvas'
     host.append(this.renderer.domElement)
-    this.camera = new THREE.PerspectiveCamera(settings.cameraFov, 1, 0.1, 1800)
+    this.camera = new THREE.PerspectiveCamera(settings.cameraFov, 1, 0.06, 2600)
     this.world = new World(this.scene, this.activeSeed, settings)
     this.scene.add(this.vehicle.object)
     this.vehicle.setTuning(settings.horsepower, settings.steering, settings.cruise)
     this.vehicle.reset(this.world.roadAt(0))
     this.world.update(0)
     this.world.updateAtmosphere(settings.timeOfDay, settings.haze)
-    this.camera.position.set(0, 4.4, -9.2)
-    this.camera.lookAt(0, 1.2, 18)
+    this.updateCamera(0, true)
     this.applyRendererSettings()
     window.addEventListener('resize', this.resize)
     this.resize()
@@ -66,12 +67,15 @@ export class Game {
   }
 
   setSettings(settings: GameSettings): void {
+    const cameraChanged = settings.cameraView !== this.settings.cameraView
     this.settings = settings
     this.vehicle.setTuning(settings.horsepower, settings.steering, settings.cruise)
     this.world.setSettings(settings)
+    this.world.update(this.vehicle.z)
     this.world.updateAtmosphere(settings.timeOfDay, settings.haze)
     this.camera.fov = settings.cameraFov
     this.camera.updateProjectionMatrix()
+    if (cameraChanged) this.snapCamera = true
     this.applyRendererSettings()
   }
 
@@ -80,6 +84,7 @@ export class Game {
     this.world.setSeed(this.activeSeed)
     this.vehicle.reset(this.world.roadAt(0))
     this.world.update(0)
+    this.snapCamera = true
     return this.activeSeed
   }
 
@@ -119,12 +124,8 @@ export class Game {
     this.vehicle.update(delta, input, roadBefore, this.world.terrainHeight(this.vehicle.x, this.vehicle.z), this.world.roadWidth)
     this.world.update(this.vehicle.z)
     const road = this.world.roadAt(this.vehicle.z)
-    const sin = Math.sin(this.vehicle.object.rotation.y)
-    const cos = Math.cos(this.vehicle.object.rotation.y)
-    this.cameraPosition.set(this.vehicle.x - sin * 9.2, this.vehicle.y + 4.25, this.vehicle.z - cos * 9.2)
-    this.camera.position.lerp(this.cameraPosition, 1 - Math.exp(-delta * 4.6))
-    this.lookTarget.set(this.vehicle.x + sin * 21, this.vehicle.y + 1.4, this.vehicle.z + cos * 21)
-    this.camera.lookAt(this.lookTarget)
+    this.cameraElapsed += delta
+    this.updateCamera(delta)
     this.frameAccumulator += delta
     this.frameCount += 1
     if (this.frameAccumulator > 0.45) {
@@ -141,5 +142,57 @@ export class Game {
       this.frameAccumulator = 0
       this.frameCount = 0
     }
+  }
+
+  private updateCamera(delta: number, immediate = false): void {
+    const heading = this.vehicle.heading
+    const forwardX = Math.sin(heading)
+    const forwardZ = Math.cos(heading)
+    const rightX = Math.cos(heading)
+    const rightZ = -Math.sin(heading)
+    const x = this.vehicle.x
+    const y = this.vehicle.y
+    const z = this.vehicle.z
+    const place = (forward: number, right: number, height: number, targetForward: number, targetHeight: number): void => {
+      this.cameraPosition.set(x + forwardX * forward + rightX * right, y + height, z + forwardZ * forward + rightZ * right)
+      this.lookTarget.set(x + forwardX * targetForward, y + targetHeight, z + forwardZ * targetForward)
+    }
+
+    const view: CameraView = this.settings.cameraView
+    switch (view) {
+      case 'high':
+        place(-18, 0, 8.8, 39, 1.8)
+        break
+      case 'hood':
+        place(1.65, 0, 1.52, 34, 1.32)
+        break
+      case 'cockpit':
+        place(0.12, 0, 1.5, 31, 1.5)
+        break
+      case 'bumper':
+        place(2.16, 0, 0.92, 31, 0.95)
+        break
+      case 'side':
+        place(-3.3, 8.2, 3.3, 14, 1.15)
+        break
+      case 'cinema': {
+        const orbit = Math.sin(this.cameraElapsed * 0.22) * 6.2
+        place(-13.5, orbit, 5.1 + Math.cos(this.cameraElapsed * 0.22) * 1.2, 25, 1.55)
+        break
+      }
+      case 'chase':
+      default:
+        place(-9.2, 0, 4.25, 23, 1.4)
+        break
+    }
+    this.vehicle.object.visible = view !== 'cockpit' && view !== 'bumper'
+    if (immediate || this.snapCamera) {
+      this.camera.position.copy(this.cameraPosition)
+      this.snapCamera = false
+    } else {
+      const follow = view === 'cockpit' || view === 'bumper' || view === 'hood' ? 1 - Math.exp(-delta * 15) : 1 - Math.exp(-delta * 4.8)
+      this.camera.position.lerp(this.cameraPosition, follow)
+    }
+    this.camera.lookAt(this.lookTarget)
   }
 }

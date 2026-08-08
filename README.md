@@ -16,12 +16,13 @@ Import this folder as a Vercel project. Vercel detects Vite automatically; use `
 ## Controls
 
 - Drive: `W` / `↑`, brake: `S` / `↓`, steer: `A` `D` / arrows
+- Change camera: `C` (Chase, High, Hood, Cockpit, Bumper, Side, and Cinema)
 - Pause: `Space`
 - On touch devices, hold the glass controls at the lower edge.
 
 ## Architecture
 
-- `game/World.ts` streams deterministic road and terrain chunks around the driver.
+- `game/World.ts` streams a deterministic road-aligned LoD corridor, with a 1.6 km+ prefetch buffer so visible terrain is ready before the driver reaches it.
 - `game/Vehicle.ts` manages easy, forgiving arcade vehicle dynamics.
 - `game/Game.ts` is the renderer/camera/update coordinator.
 - `ui/Interface.ts` owns settings, touch input, and HUD bindings.

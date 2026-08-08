@@ -1,5 +1,5 @@
 import type { DriveInput } from '../game/Vehicle'
-import { type GameSettings, qualityDetail, saveSettings } from '../game/Settings'
+import { cameraViewLabels, cameraViewShortLabels, cameraViews, type CameraView, type GameSettings, qualityDetail, saveSettings } from '../game/Settings'
 import type { Telemetry } from '../game/Game'
 
 export interface InterfaceCallbacks {
@@ -22,7 +22,7 @@ export class Interface {
   private readonly keys = new Set<string>()
   private touchInput = { steer: 0, throttle: 0, brake: 0 }
   private paused = true
-  private telemetryElements: Record<string, HTMLElement>
+  private telemetryElements: Record<'speed' | 'power', HTMLElement>
 
   constructor(root: HTMLElement, settings: GameSettings, callbacks: InterfaceCallbacks) {
     this.root = root
@@ -31,10 +31,6 @@ export class Interface {
     this.root.innerHTML = this.template()
     this.telemetryElements = {
       speed: this.byId('speed'),
-      distance: this.byId('distance'),
-      fps: this.byId('fps'),
-      biome: this.byId('biome'),
-      surface: this.byId('surface'),
       power: this.byId('power-readout'),
     }
     this.bind()
@@ -54,10 +50,6 @@ export class Interface {
 
   updateTelemetry(data: Telemetry): void {
     this.telemetryElements.speed.textContent = `${Math.round(data.speed)}`
-    this.telemetryElements.distance.textContent = `${data.distance.toFixed(1)} km`
-    this.telemetryElements.fps.textContent = `${data.fps} FPS`
-    this.telemetryElements.biome.textContent = data.biome
-    this.telemetryElements.surface.textContent = data.offRoad ? 'OFF ROAD' : 'OPEN ROAD'
   }
 
   setRouteSeed(seed: number): void {
@@ -68,10 +60,9 @@ export class Interface {
     return `
       <main class="experience">
         <section class="hud top-hud">
-          <div class="brand-block"><span class="brand-mark">F</span><span class="brand">FASTRORADSS</span><span class="tag">ENDLESS DRIVE</span></div>
-          <div class="route-pill"><span class="pulse"></span><span id="biome">Lupine Vale</span><span class="route-separator"></span><span id="seed">Route —</span></div>
+          <div class="brand-block"><span class="brand-mark">F</span><span class="brand">FASTRORADSS</span></div>
           <div class="hud-actions">
-            <button class="icon-button" id="new-route" aria-label="Create a new road" title="New route">↻</button>
+            <button class="camera-button" id="camera-button" aria-label="Change camera view" title="Change camera view"><span>◉</span><small id="camera-label">CHASE</small></button>
             <button class="icon-button" id="pause-button" aria-label="Pause drive" title="Pause drive">Ⅱ</button>
             <button class="icon-button settings-button" id="open-settings" aria-label="Open settings" title="Settings">⚙</button>
           </div>
@@ -79,12 +70,9 @@ export class Interface {
 
         <section class="hud dashboard" aria-label="Drive telemetry">
           <div class="speed-cluster"><strong id="speed">0</strong><span>KM/H</span></div>
-          <div class="metric"><span>Distance</span><strong id="distance">0.0 km</strong></div>
-          <div class="metric"><span>Surface</span><strong id="surface">OPEN ROAD</strong></div>
-          <div class="metric"><span>Frame</span><strong id="fps">60 FPS</strong></div>
         </section>
 
-        <section class="hud drive-tip"><span class="keyboard-tip">W A S D</span><span>to take the long way home</span></section>
+        <section class="hud drive-tip"><span class="keyboard-tip">C</span><span>changes view</span></section>
 
         <section class="touch-controls" aria-label="Touch controls">
           <div class="touch-steer">
@@ -130,6 +118,9 @@ export class Interface {
             </section>
             <section class="setting-group">
               <div class="setting-title"><span>World &amp; camera</span><small>Build your atmosphere</small></div>
+              <div class="camera-options" role="group" aria-label="Camera view">
+                <button data-camera="chase">Chase</button><button data-camera="high">High</button><button data-camera="hood">Hood</button><button data-camera="cockpit">Cockpit</button><button data-camera="bumper">Bumper</button><button data-camera="side">Side</button><button data-camera="cinema">Cinema</button>
+              </div>
               <label class="range-row" for="time"><span>Sun position</span><output id="time-value"></output></label>
               <input id="time" type="range" min="0.08" max="0.94" step="0.01" />
               <label class="range-row" for="haze"><span>Distance haze</span><output id="haze-value"></output></label>
@@ -148,6 +139,7 @@ export class Interface {
               <label class="switch-row"><span><strong>Soft shadows</strong><small>More depth, a little more GPU</small></span><input id="shadows" type="checkbox" /><i></i></label>
             </section>
           </div>
+          <div class="route-actions"><button id="new-route" class="route-button">New route</button><span id="seed">Route —</span></div>
           <div class="sheet-foot">Settings save on this device <span>•</span> <span id="quality-readout">Balanced</span></div>
         </aside>
       </main>`
@@ -156,11 +148,13 @@ export class Interface {
   private bind(): void {
     window.addEventListener('keydown', (event) => {
       const key = event.key.toLowerCase()
-      if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(key)) event.preventDefault()
+      if (['w', 'a', 's', 'd', 'c', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(key)) event.preventDefault()
       if (key === ' ') this.togglePause()
+      else if (key === 'c') this.cycleCamera()
       else this.keys.add(key)
     })
     window.addEventListener('keyup', (event) => this.keys.delete(event.key.toLowerCase()))
+    window.addEventListener('blur', () => this.keys.clear())
     this.byId('begin').addEventListener('click', () => {
       this.byId('welcome').classList.add('is-hidden')
       this.setPaused(false)
@@ -168,10 +162,14 @@ export class Interface {
     })
     this.byId('open-settings').addEventListener('click', () => this.openSettings(true))
     this.byId('close-settings').addEventListener('click', () => this.openSettings(false))
+    this.byId('camera-button').addEventListener('click', () => this.cycleCamera())
     this.byId('pause-button').addEventListener('click', () => this.togglePause())
     this.byId('new-route').addEventListener('click', () => this.setRouteSeed(this.callbacks.onNewRoute()))
     this.root.querySelectorAll<HTMLButtonElement>('[data-quality]').forEach((button) => {
       button.addEventListener('click', () => this.chooseQuality(button.dataset.quality as GameSettings['quality']))
+    })
+    this.root.querySelectorAll<HTMLButtonElement>('[data-camera]').forEach((button) => {
+      button.addEventListener('click', () => this.chooseCamera(button.dataset.camera as CameraView))
     })
     const inputIds = ['horsepower', 'steering', 'time', 'haze', 'fov', 'render-scale', 'vegetation', 'distance']
     inputIds.forEach((id) => {
@@ -222,6 +220,17 @@ export class Interface {
     this.commit()
   }
 
+  private cycleCamera(): void {
+    const currentIndex = cameraViews.indexOf(this.settings.cameraView)
+    this.chooseCamera(cameraViews[(currentIndex + 1) % cameraViews.length])
+  }
+
+  private chooseCamera(view: CameraView): void {
+    this.settings.cameraView = view
+    this.syncCameraControls()
+    this.commit()
+  }
+
   private pullForm(): void {
     this.settings.horsepower = Number(this.byId<HTMLInputElement>('horsepower').value)
     this.settings.steering = Number(this.byId<HTMLInputElement>('steering').value)
@@ -247,7 +256,17 @@ export class Interface {
     this.byId<HTMLInputElement>('distance').value = String(this.settings.drawDistance)
     this.byId<HTMLInputElement>('shadows').checked = this.settings.shadows
     this.root.querySelectorAll<HTMLButtonElement>('[data-quality]').forEach((button) => button.classList.toggle('is-selected', button.dataset.quality === this.settings.quality))
+    this.syncCameraControls()
     this.syncValueLabels()
+  }
+
+  private syncCameraControls(): void {
+    this.root.querySelectorAll<HTMLButtonElement>('[data-camera]').forEach((button) => {
+      const view = button.dataset.camera as CameraView
+      button.classList.toggle('is-selected', view === this.settings.cameraView)
+      button.setAttribute('aria-label', cameraViewLabels[view])
+    })
+    this.byId('camera-label').textContent = cameraViewShortLabels[this.settings.cameraView]
   }
 
   private syncValueLabels(): void {

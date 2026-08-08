@@ -3,7 +3,7 @@ import { fractalNoise, hash2 } from './Noise'
 import { qualityDetail, type GameSettings } from './Settings'
 
 const CHUNK_LENGTH = 160
-const TERRAIN_HALF_WIDTH = 210
+const TERRAIN_HALF_WIDTH = 290
 const ROAD_WIDTH = 9.5
 
 export interface RoadSample {
@@ -15,6 +15,7 @@ export interface RoadSample {
 
 interface WorldChunk {
   group: THREE.Group
+  lod: 0 | 1 | 2
   dispose: () => void
 }
 
@@ -60,7 +61,7 @@ export class World {
   }
 
   setSettings(settings: GameSettings): void {
-    const needsRebuild = settings.quality !== this.settings.quality || settings.vegetation !== this.settings.vegetation
+    const needsRebuild = settings.quality !== this.settings.quality || settings.vegetation !== this.settings.vegetation || settings.shadows !== this.settings.shadows
     this.settings = settings
     this.sun.castShadow = settings.shadows
     if (needsRebuild) this.clearChunks()
@@ -72,10 +73,24 @@ export class World {
   }
 
   update(playerZ: number): void {
-    const rear = Math.floor((playerZ - 300) / CHUNK_LENGTH)
-    const forward = Math.ceil((playerZ + this.settings.drawDistance) / CHUNK_LENGTH)
+    // Hold a safety runway beyond the visible world. The actual road centreline is
+    // deterministic far ahead, so this is cheap prefetch rather than blind work.
+    const rear = Math.floor((playerZ - 420) / CHUNK_LENGTH)
+    const prefetchDistance = Math.max(this.settings.drawDistance, 1600) + CHUNK_LENGTH
+    const forward = Math.ceil((playerZ + prefetchDistance) / CHUNK_LENGTH)
     for (let index = rear; index <= forward; index += 1) {
-      if (!this.chunks.has(index)) this.chunks.set(index, this.createChunk(index))
+      const desiredLod = this.lodFor(index, playerZ)
+      const existing = this.chunks.get(index)
+      if (!existing) {
+        this.chunks.set(index, this.createChunk(index, desiredLod))
+      } else if (existing.lod !== desiredLod) {
+        // Build the replacement before releasing the old tile: a chunk can never
+        // disappear for a rendered frame while it changes level of detail.
+        const replacement = this.createChunk(index, desiredLod)
+        this.scene.remove(existing.group)
+        existing.dispose()
+        this.chunks.set(index, replacement)
+      }
     }
     for (const [index, chunk] of this.chunks) {
       if (index < rear || index > forward) {
@@ -106,7 +121,7 @@ export class World {
     const warmth = Math.max(0, 1 - Math.abs(time - 0.72) * 2.4)
     const sky = new THREE.Color().setHSL(0.55 - warmth * 0.07, 0.42, 0.36 + Math.sin(angle) * 0.16)
     this.scene.background = sky
-    this.scene.fog = new THREE.Fog(sky, 180, THREE.MathUtils.lerp(560, 1150, 1 - haze))
+    this.scene.fog = new THREE.Fog(sky, 260, THREE.MathUtils.lerp(900, 2300, 1 - haze))
     this.sun.color.setHSL(0.1 - warmth * 0.07, 0.78, 0.67)
     this.sun.intensity = THREE.MathUtils.lerp(1.1, 3.4, Math.max(0.14, Math.sin(angle)))
     this.sun.position.set(Math.cos(angle) * 330, Math.max(25, Math.sin(angle) * 310), 120)
@@ -130,18 +145,27 @@ export class World {
     this.chunks.clear()
   }
 
-  private createChunk(index: number): WorldChunk {
+  private lodFor(index: number, playerZ: number): 0 | 1 | 2 {
+    const distance = index * CHUNK_LENGTH + CHUNK_LENGTH * 0.5 - playerZ
+    if (distance < -170 || distance > 980) return 0
+    if (distance > 390) return 1
+    return 2
+  }
+
+  private createChunk(index: number, lod: 0 | 1 | 2): WorldChunk {
     const group = new THREE.Group()
     group.name = `landscape-${index}`
     const zStart = index * CHUNK_LENGTH
-    const detail = qualityDetail(this.settings.quality)
-    const terrain = this.createTerrain(zStart, Math.round(12 + detail * 18))
-    const road = this.createRoad(zStart, Math.round(18 + detail * 20))
-    const vegetation = this.createVegetation(index, zStart, Math.round((14 + detail * 48) * this.settings.vegetation))
+    const lodScale = lod === 2 ? 1 : lod === 1 ? 0.64 : 0.36
+    const detail = qualityDetail(this.settings.quality) * lodScale
+    const terrain = this.createTerrain(zStart, Math.round(7 + detail * 27))
+    const road = this.createRoad(zStart, Math.round(11 + detail * 38))
+    const vegetation = this.createVegetation(index, zStart, Math.max(2, Math.round((4 + detail * 48) * this.settings.vegetation)))
     group.add(terrain, road, vegetation)
     this.scene.add(group)
     return {
       group,
+      lod,
       dispose: () => {
         terrain.geometry.dispose()
         road.children.forEach((child) => {

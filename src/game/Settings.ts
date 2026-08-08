@@ -1,4 +1,26 @@
 export type Quality = 'smooth' | 'balanced' | 'cinematic'
+export const cameraViews = ['chase', 'high', 'hood', 'cockpit', 'bumper', 'side', 'cinema'] as const
+export type CameraView = (typeof cameraViews)[number]
+
+export const cameraViewLabels: Record<CameraView, string> = {
+  chase: 'Chase',
+  high: 'High chase',
+  hood: 'Hood',
+  cockpit: 'Cockpit',
+  bumper: 'Bumper',
+  side: 'Side track',
+  cinema: 'Cinema',
+}
+
+export const cameraViewShortLabels: Record<CameraView, string> = {
+  chase: 'CHASE',
+  high: 'HIGH',
+  hood: 'HOOD',
+  cockpit: 'COCKPIT',
+  bumper: 'BUMPER',
+  side: 'SIDE',
+  cinema: 'CINEMA',
+}
 
 export interface GameSettings {
   quality: Quality
@@ -12,6 +34,7 @@ export interface GameSettings {
   timeOfDay: number
   haze: number
   cameraFov: number
+  cameraView: CameraView
 }
 
 const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
@@ -28,6 +51,7 @@ export const defaults: GameSettings = {
   timeOfDay: 0.72,
   haze: 0.56,
   cameraFov: mobile ? 66 : 62,
+  cameraView: 'chase',
 }
 
 export function loadSettings(): GameSettings {
